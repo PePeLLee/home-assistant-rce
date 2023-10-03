@@ -10,4 +10,5 @@ i dodać poprzez ustawienia HA - dodaj integrację (nie przez edycje konfiguracj
 
 Integracja jest dostępna jako kalendarz:
 
-![image](https://github.com/PePeLLee/home-assistant-rce/assets/61408245/f5d2d423-7e4c-4c5e-a0d3-a777c431879b)
+![image](https://github.com/PePeLLee/home-assistant-rce/assets/61408245/fb708945-b5b4-4eb9-a991-c913a078aba0)
+
