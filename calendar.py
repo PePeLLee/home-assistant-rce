@@ -133,11 +133,12 @@ class RCECalendar(CalendarEntity):
                 curr_price = i['rce_pln']
                 start_time = ts
             end_time = te
-        self.ev.append(
-            CalendarEvent( start_time, end_time,curr_price,
-                        description="https://www.pse.pl/dane-systemowe/funkcjonowanie-rb/raporty-dobowe-z-funkcjonowania-rb/podstawowe-wskazniki-cenowe-i-kosztowe/rynkowa-cena-energii-elektrycznej-rce",
-                    )
-        )
+        if end_time is not None:
+            self.ev.append(
+                CalendarEvent( start_time, end_time,curr_price, 
+                            description="https://www.pse.pl/dane-systemowe/funkcjonowanie-rb/raporty-dobowe-z-funkcjonowania-rb/podstawowe-wskazniki-cenowe-i-kosztowe/rynkowa-cena-energii-elektrycznej-rce",
+                        )
+            )
 
 
     async def async_update(self):
