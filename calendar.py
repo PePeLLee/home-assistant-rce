@@ -107,32 +107,34 @@ class RCECalendar(CalendarEntity):
             )
             event_start = int(row[1])
 
-
     def json_to_events(self, json, day: datetime):
         curr_price = None
         start_time = None
         end_time = None
         for i in json['value']:
             times =  i['udtczas_oreb'].split("-")
-            ts = datetime.strptime(times[0].strip(),"%H:%M")
-            ts = day.replace(hour=ts.hour, minute=ts.minute, second=0)
-            if times[1].strip()=="24:00":
-                te = day.replace(hour=0, minute=0, second=0) + timedelta(days=1)
-            else:
-                te = datetime.strptime(times[1].strip(),"%H:%M")
-                te = day.replace(hour=te.hour, minute=te.minute, second=0)
-            if(i['rce_pln']!=curr_price):
-                if(curr_price):
-                    #if ts==end_time:
-                    #    end_time = end_time - timedelta(seconds=1)
-                    self.ev.append(
-                        CalendarEvent( start_time, end_time,curr_price,
-                            description="https://www.pse.pl/dane-systemowe/funkcjonowanie-rb/raporty-dobowe-z-funkcjonowania-rb/podstawowe-wskazniki-cenowe-i-kosztowe/rynkowa-cena-energii-elektrycznej-rce",
+            try:
+                ts = datetime.strptime(times[0].strip(),"%H:%M")
+                ts = day.replace(hour=ts.hour, minute=ts.minute, second=0)
+                if times[1].strip()=="24:00":
+                    te = day.replace(hour=0, minute=0, second=0) + timedelta(days=1)
+                else:
+                    te = datetime.strptime(times[1].strip(),"%H:%M")
+                    te = day.replace(hour=te.hour, minute=te.minute, second=0)
+                if(i['rce_pln']!=curr_price):
+                    if(curr_price):
+                        #if ts==end_time:
+                        #    end_time = end_time - timedelta(seconds=1)
+                        self.ev.append(
+                            CalendarEvent( start_time, end_time,curr_price,
+                                description="https://www.pse.pl/dane-systemowe/funkcjonowanie-rb/raporty-dobowe-z-funkcjonowania-rb/podstawowe-wskazniki-cenowe-i-kosztowe/rynkowa-cena-energii-elektrycznej-rce",
+                            )
                         )
-                    )
-                curr_price = i['rce_pln']
-                start_time = ts
-            end_time = te
+                    curr_price = i['rce_pln']
+                    start_time = ts
+                end_time = te
+            except ValueError:
+                pass
         if end_time is not None:
             self.ev.append(
                 CalendarEvent( start_time, end_time,curr_price, 
