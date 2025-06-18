@@ -73,7 +73,9 @@ class RCECalendar(CalendarEntity):
     def fetch_cloud_data(self):
         """fetch today data"""
         now = datetime.now(ZoneInfo(self.hass.config.time_zone))
-        url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{now.strftime('%Y-%m-%d')}'"
+        #url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{now.strftime('%Y-%m-%d')}'"
+        url = f"https://apimpdv2-bmgdhhajexe8aade.a01.azurefd.net/api/rce-pln?%24filter=business_date eq '{now.strftime('%Y-%m-%d')}'"
+        #https://apimpdv2-bmgdhhajexe8aade.a01.azurefd.net/api/rce-pln?%24filter=business_date%20gt%20%272025-06-17%27
         try:
             self.cloud_response = requests.get(url, timeout=10)
             self.cloud_response.encoding = 'ISO-8859-2'
@@ -84,7 +86,7 @@ class RCECalendar(CalendarEntity):
     def fetch_cloud_data_1(self):
         """fetch tomorrow data"""
         now = datetime.now(ZoneInfo(self.hass.config.time_zone)) + timedelta(days=1)
-        url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{now.strftime('%Y-%m-%d')}'"
+        url = f"https://apimpdv2-bmgdhhajexe8aade.a01.azurefd.net/api/rce-pln?%24filter=business_date eq '{now.strftime('%Y-%m-%d')}'"
         try:
             self.cloud_response = requests.get(url, timeout=10)
             self.cloud_response.encoding = 'ISO-8859-2'
@@ -112,7 +114,8 @@ class RCECalendar(CalendarEntity):
         start_time = None
         end_time = None
         for i in json['value']:
-            times =  i['udtczas_oreb'].split("-")
+            #times =  i['udtczas_oreb'].split("-")
+            times =  i['period'].split("-")
             try:
                 ts = datetime.strptime(times[0].strip(),"%H:%M")
                 ts = day.replace(hour=ts.hour, minute=ts.minute, second=0)
