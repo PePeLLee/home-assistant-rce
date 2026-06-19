@@ -74,8 +74,9 @@ class RCECalendar(CalendarEntity):
         """fetch today data"""
         now = datetime.now(ZoneInfo(self.hass.config.time_zone))
         #url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{now.strftime('%Y-%m-%d')}'"
-        url = f"https://apimpdv2-bmgdhhajexe8aade.a01.azurefd.net/api/rce-pln?%24filter=business_date eq '{now.strftime('%Y-%m-%d')}'"
-        #https://apimpdv2-bmgdhhajexe8aade.a01.azurefd.net/api/rce-pln?%24filter=business_date%20gt%20%272025-06-17%27
+        url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=business_date+eq+'{now.strftime('%Y-%m-%d')}'"
+        #https://apimpdv2-bmgdhhajexe8aade.a01.azurefd.net/api/rce-pln?$filter=business_date+gt+%272026-06-18%27
+        #https://api.raporty.pse.pl/api/rce-pln?$filter=business_date+gt+%272026-06-18%27&$orderby=dtime_utc+asc
         try:
             self.cloud_response = requests.get(url, timeout=10)
             self.cloud_response.encoding = 'ISO-8859-2'
