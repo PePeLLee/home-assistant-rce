@@ -1,30 +1,46 @@
 """Home Assistant integration for Rynkowa cena energii elektrycznej (RCE)."""
 
-from homeassistant.core import HomeAssistant
+from __future__ import annotations
+
+import logging
+
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 
-DOMAIN = "rce"
-PLATFORMS = ["calendar"]
+from .const import DOMAIN, PLATFORMS
+from .coordinator import RCEDataUpdateCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup(hass: HomeAssistant, config):
-    """Set up the RCE integration."""
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the RCE integration (YAML config not used currently)."""
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up RCE from a config entry."""
+    # Create coordinator
+    coordinator = RCEDataUpdateCoordinator(hass)
+
+    # Initial fetch
+    await coordinator.async_config_entry_first_refresh()
+
+    # Store in hass.data for access by platforms
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = coordinator
+
+    # Forward setup to platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id)
 
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload config entry."""
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
+    return unload_ok
