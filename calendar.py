@@ -36,7 +36,7 @@ class RCECalendar(CoordinatorEntity, CalendarEntity):
         super().__init__(coordinator)
         self._attr_unique_id = "rce_calendar"
         self._attr_name = "RCE Calendar"
-        self._attr_has_entity_name = True
+        self._attr_has_entity_name = False
 
     @property
     def event(self) -> CalendarEvent | None:
@@ -63,7 +63,7 @@ class RCECalendar(CoordinatorEntity, CalendarEntity):
                     CalendarEvent(
                         start=event_data["start"],
                         end=event_data["end"],
-                        title=f"RCE: {event_data['price']} PLN/MWh",
+                        summary=f"RCE: {event_data['price']} PLN/MWh",
                         description=PSE_INFO_URL,
                     )
                 )
