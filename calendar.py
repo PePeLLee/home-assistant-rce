@@ -10,6 +10,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from zoneinfo import ZoneInfo
+
 
 from .const import DOMAIN, PSE_INFO_URL
 from .coordinator import RCEDataUpdateCoordinator
@@ -48,7 +50,12 @@ class RCECalendar(CoordinatorEntity, CalendarEntity):
         if not events:
             return None
 
-        return events[0]
+        for ev in events:
+            if datetime.now(ZoneInfo(self.hass.config.time_zone)) < ev.end:
+                return ev
+
+        return None
+
 
     def _get_all_events(self) -> list[CalendarEvent]:
         """Get all parsed events."""
