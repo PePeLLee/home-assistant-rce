@@ -16,7 +16,7 @@ class RCEConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             return self.async_create_entry(
-                title="Rynkowa cena energii elektrycznej",
+                title="Rynkowa Cena Energii",
                 data={},
             )
 
