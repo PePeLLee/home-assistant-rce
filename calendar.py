@@ -63,7 +63,7 @@ class RCECalendar(CoordinatorEntity, CalendarEntity):
                     CalendarEvent(
                         start=event_data["start"],
                         end=event_data["end"],
-                        title=f"RCE: {event_data['price']} PLN/MWh",
+                        summary=f"RCE: {event_data['price']} PLN/MWh",
                         description=PSE_INFO_URL,
                     )
                 )
