@@ -1,176 +1,195 @@
-"""Platform for sensor integration."""
+"""Calendar platform for RCE integration."""
+
 from __future__ import annotations
-import csv
+
+import logging
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import requests
-import logging
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.config_entries import ConfigEntry
 
-from datetime import datetime, timedelta, timezone
-
-SCAN_INTERVAL = timedelta(seconds=20)
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
-    """Konfiguracja za pomcą przepływu konfiguracji."""
+SCAN_INTERVAL = timedelta(minutes=30)
 
-    """This one is in use"""
-    async_add_entities([RCECalendar()])
+PSE_API_URL_TODAY = "https://api.raporty.pse.pl/api/rce-pln"
+PSE_API_URL_TOMORROW = "https://apimpdv2-bmgdhhajexe8aade.a01.azurefd.net/api/rce-pln"
+PSE_INFO_URL = (
+    "https://www.pse.pl/dane-systemowe/funkcjonowanie-rb/raporty-dobowe-z-funkcjonowania-rb/"
+    "podstawowe-wskazniki-cenowe-i-kosztowe/rynkowa-cena-energii-elektrycznej-rce"
+)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up the RCE calendar platform."""
+    async_add_entities([RCECalendar(hass)], update_before_add=True)
 
 
 class RCECalendar(CalendarEntity):
-    """Representation of a Sensor."""
+    """Representation of the RCE Calendar entity."""
 
-    def __init__(self) -> None:
-        _LOGGER.info("RCE calendar")
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the RCE calendar."""
+        _LOGGER.info("Initializing RCE calendar")
         super().__init__()
-        self.ev = []
-        self.cr_time = None
-        self.last_update = None
+        self.hass = hass
+        self.events: list[CalendarEvent] = []
         self.cloud_response = None
         self.last_network_pull = datetime(
             year=2000, month=1, day=1, tzinfo=timezone.utc
         )
         self._attr_unique_id = "rce_calendar"
-        self._attr_name = "RCE calendar"
+        self._attr_name = "RCE Calendar"
 
+    def _get_now(self) -> datetime:
+        """Get current time in the configured timezone."""
+        tz = ZoneInfo(self.hass.config.time_zone)
+        return datetime.now(tz)
+
+    def _fetch_data(self, url: str, query_date: datetime) -> dict | None:
+        """Fetch data from PSE API."""
+        try:
+            formatted_date = query_date.strftime("%Y-%m-%d")
+            full_url = f"{url}?$filter=business_date+eq+'{formatted_date}'"
+            response = requests.get(full_url, timeout=10)
+            response.encoding = "ISO-8859-2"
+
+            if response.status_code == 200:
+                return response.json()
+            _LOGGER.warning(
+                "API returned status code %d for date %s",
+                response.status_code,
+                formatted_date,
+            )
+        except requests.exceptions.Timeout:
+            _LOGGER.error("Timeout fetching data for date %s", query_date.strftime("%Y-%m-%d"))
+        except requests.exceptions.RequestException as err:
+            _LOGGER.error("Error fetching data: %s", err)
+        except ValueError as err:
+            _LOGGER.error("Invalid JSON response: %s", err)
+
+        return None
+
+    def _json_to_events(self, data: dict | None, day: datetime) -> None:
+        """Transform JSON data to calendar events."""
+        if not data or "value" not in data:
+            _LOGGER.debug("No data to process for date %s", day.date())
+            return
+
+        try:
+            curr_price = None
+            start_time = None
+            end_time = None
+
+            for item in data["value"]:
+                if "period" not in item or "rce_pln" not in item:
+                    continue
+
+                period_str = item["period"]
+                times = period_str.split("-")
+
+                if len(times) != 2:
+                    _LOGGER.debug("Invalid period format: %s", period_str)
+                    continue
+
+                try:
+                    ts = datetime.strptime(times[0].strip(), "%H:%M")
+                    ts = day.replace(hour=ts.hour, minute=ts.minute, second=0)
+
+                    if times[1].strip() == "24:00":
+                        te = day.replace(hour=0, minute=0, second=0) + timedelta(days=1)
+                    else:
+                        te = datetime.strptime(times[1].strip(), "%H:%M")
+                        te = day.replace(hour=te.hour, minute=te.minute, second=0)
+
+                    price = item["rce_pln"]
+
+                    if price != curr_price:
+                        if curr_price is not None and start_time is not None and end_time is not None:
+                            event = CalendarEvent(
+                                start=start_time,
+                                end=end_time,
+                                title=f"RCE: {curr_price} PLN/MWh",
+                                description=PSE_INFO_URL,
+                            )
+                            self.events.append(event)
+
+                        curr_price = price
+                        start_time = ts
+
+                    end_time = te
+
+                except ValueError as err:
+                    _LOGGER.debug("Error parsing period %s: %s", period_str, err)
+                    continue
+
+            # Add the last event
+            if curr_price is not None and start_time is not None and end_time is not None:
+                event = CalendarEvent(
+                    start=start_time,
+                    end=end_time,
+                    title=f"RCE: {curr_price} PLN/MWh",
+                    description=PSE_INFO_URL,
+                )
+                self.events.append(event)
+
+        except (KeyError, TypeError) as err:
+            _LOGGER.error("Error processing JSON data: %s", err)
 
     async def async_get_events(
         self,
         hass: HomeAssistant,
-        start_date: datetime.datetime,
-        end_date: datetime.datetime,
+        start_date: datetime,
+        end_date: datetime,
     ) -> list[CalendarEvent]:
         """Return calendar events within a datetime range."""
         ret = []
-        ev: CalendarEvent
-        for ev in self.ev:
-            if (
-                start_date < ev.start
-                and ev.start < end_date
-                or start_date < ev.start
-                and ev.end < end_date
-                or start_date < ev.end
-                and ev.end < end_date
-            ):
-                ret.append(ev)
+        for event in self.events:
+            if start_date <= event.start < end_date or start_date < event.end <= end_date:
+                ret.append(event)
         return ret
 
     @property
     def event(self) -> CalendarEvent | None:
         """Return the next upcoming event."""
+        now = self._get_now()
+        for event in self.events:
+            if now < event.end:
+                return event
+        return None
 
-        ev: CalendarEvent
-        for ev in self.ev:
-            if datetime.now(ZoneInfo(self.hass.config.time_zone)) < ev.end:
-                return ev
+    async def async_update(self) -> None:
+        """Retrieve latest state from the API."""
+        now = self._get_now()
 
-    def fetch_cloud_data(self):
-        """fetch today data"""
-        now = datetime.now(ZoneInfo(self.hass.config.time_zone))
-        #url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{now.strftime('%Y-%m-%d')}'"
-        url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=business_date+eq+'{now.strftime('%Y-%m-%d')}'"
-        #https://apimpdv2-bmgdhhajexe8aade.a01.azurefd.net/api/rce-pln?$filter=business_date+gt+%272026-06-18%27
-        #https://api.raporty.pse.pl/api/rce-pln?$filter=business_date+gt+%272026-06-18%27&$orderby=dtime_utc+asc
-        try:
-            self.cloud_response = requests.get(url, timeout=10)
-            self.cloud_response.encoding = 'ISO-8859-2'
-
-        except ReadTimeout:
-            self.cloud_response = ""
-
-    def fetch_cloud_data_1(self):
-        """fetch tomorrow data"""
-        now = datetime.now(ZoneInfo(self.hass.config.time_zone)) + timedelta(days=1)
-        url = f"https://apimpdv2-bmgdhhajexe8aade.a01.azurefd.net/api/rce-pln?%24filter=business_date eq '{now.strftime('%Y-%m-%d')}'"
-        try:
-            self.cloud_response = requests.get(url, timeout=10)
-            self.cloud_response.encoding = 'ISO-8859-2'
-        except requests.exceptions.ReadTimeout:
-            self.cloud_response = ""
-
-    def csv_to_events(self, csv_reader: csv, day: datetime):
-        """Transform csv to events"""
-
-        for row in csv_reader:
-            if not row[1].isnumeric():
-                continue
-            self.ev.append(
-                CalendarEvent(
-                    day.replace(hour=int(row[1])-1),
-                    day.replace(hour=int(row[1])-1,minute=59,second=59),
-                    row[2],
-                    description="https://www.pse.pl/dane-systemowe/funkcjonowanie-rb/raporty-dobowe-z-funkcjonowania-rb/podstawowe-wskazniki-cenowe-i-kosztowe/rynkowa-cena-energii-elektrycznej-rce",
-                )
-            )
-            event_start = int(row[1])
-
-    def json_to_events(self, json, day: datetime):
-        curr_price = None
-        start_time = None
-        end_time = None
-        for i in json['value']:
-            #times =  i['udtczas_oreb'].split("-")
-            times =  i['period'].split("-")
-            try:
-                ts = datetime.strptime(times[0].strip(),"%H:%M")
-                ts = day.replace(hour=ts.hour, minute=ts.minute, second=0)
-                if times[1].strip()=="24:00":
-                    te = day.replace(hour=0, minute=0, second=0) + timedelta(days=1)
-                else:
-                    te = datetime.strptime(times[1].strip(),"%H:%M")
-                    te = day.replace(hour=te.hour, minute=te.minute, second=0)
-                if(i['rce_pln']!=curr_price):
-                    if(curr_price):
-                        #if ts==end_time:
-                        #    end_time = end_time - timedelta(seconds=1)
-                        self.ev.append(
-                            CalendarEvent( start_time, end_time,curr_price,
-                                description="https://www.pse.pl/dane-systemowe/funkcjonowanie-rb/raporty-dobowe-z-funkcjonowania-rb/podstawowe-wskazniki-cenowe-i-kosztowe/rynkowa-cena-energii-elektrycznej-rce",
-                            )
-                        )
-                    curr_price = i['rce_pln']
-                    start_time = ts
-                end_time = te
-            except ValueError:
-                pass
-        if end_time is not None:
-            self.ev.append(
-                CalendarEvent( start_time, end_time,curr_price, 
-                            description="https://www.pse.pl/dane-systemowe/funkcjonowanie-rb/raporty-dobowe-z-funkcjonowania-rb/podstawowe-wskazniki-cenowe-i-kosztowe/rynkowa-cena-energii-elektrycznej-rce",
-                        )
-            )
-
-
-    async def async_update(self):
-        """Retrieve latest state."""
-        now = datetime.now(ZoneInfo(self.hass.config.time_zone))
+        # Check if we should update (throttle to 30 minutes)
         if now < self.last_network_pull + timedelta(minutes=30):
             return
+
         self.last_network_pull = now
-        self.cloud_response = None
-        await self.hass.async_add_executor_job(self.fetch_cloud_data)
+        self.events.clear()
 
-        if self.cloud_response is None or self.cloud_response.status_code != 200:
-            return False
-        self.ev.clear()
+        # Fetch today's data
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_data = await self.hass.async_add_executor_job(
+            self._fetch_data, PSE_API_URL_TODAY, today
+        )
+        self._json_to_events(today_data, today)
 
-        now = now.replace(minute=0).replace(second=0)
-        self.json_to_events(self.cloud_response.json(), now)
-        #CalendarEvent( now, now, now, description=self.cloud_response)
+        # Fetch tomorrow's data
+        tomorrow = today + timedelta(days=1)
+        tomorrow_data = await self.hass.async_add_executor_job(
+            self._fetch_data, PSE_API_URL_TOMORROW, tomorrow
+        )
+        self._json_to_events(tomorrow_data, tomorrow)
 
-        self.cloud_response = None
-        await self.hass.async_add_executor_job(self.fetch_cloud_data_1)
-
-        if self.cloud_response is None or self.cloud_response.status_code != 200:
-            return False
-
-        now = now.replace(minute=0).replace(second=0) + timedelta(days=1)
-        self.json_to_events(self.cloud_response.json(), now)
-        #CalendarEvent( now, now, now, description=self.cloud_response)
-
+        _LOGGER.debug("RCE calendar updated with %d events", len(self.events))
