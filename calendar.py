@@ -36,7 +36,7 @@ class RCECalendar(CoordinatorEntity, CalendarEntity):
         super().__init__(coordinator)
         self._attr_unique_id = "rce_calendar"
         self._attr_name = "RCE Calendar"
-        self._attr_has_entity_name = True
+        self._attr_has_entity_name = False
 
     @property
     def event(self) -> CalendarEvent | None:
