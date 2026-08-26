@@ -1,12 +1,12 @@
 {
   "domain": "rce",
-  "name": "RCE",
-  "codeowners": ["@pepellee"],
+  "name": "Rynkowa Cena Energii Elektrycznej",
+  "codeowners": ["@PePeLLee"],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/PePeLLee/home-assistant-rce",
   "iot_class": "local_polling",
-  "requirements": [],
+  "requirements": ["requests>=2.28.0"],
   "issue_tracker": "https://github.com/PePeLLee/home-assistant-rce/issues",
-  "version": "2024.09.0"
+  "version": "2024.10.0"
 }
