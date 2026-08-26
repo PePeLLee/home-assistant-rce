@@ -1,10 +1,10 @@
 {
-    "title": "Kalendarz ograniczeń PSE",
+    "title": "Rynkowa Cena Energii",
     "config": {
         "step": {
             "user": {
-                "description": "Czy chcesz dodać integrację ograniczeń PSE?",
-                "title": "Ograniczenia PSE"
+                "description": "Czy chcesz dodać integrację Rynkowej Ceny Energii?",
+                "title": "Rynkowa Cena Energii"
             }
         }
     }
